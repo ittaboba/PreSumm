@@ -70,7 +70,45 @@ Results on CNN/DailyMail (20/8/2019):
 
 **Package Requirements**: torch==1.1.0 pytorch_transformers tensorboardX multiprocess pyrouge
 
+**ROUGE Setup**: [Source](https://stackoverflow.com/questions/45894212/installing-pyrouge-gets-error-in-ubuntu)
 
+**Step 1:** Install Pyrouge from source (not from pip)
+```
+git clone https://github.com/bheinzerling/pyrouge
+cd pyrouge
+pip install -e .
+```
+
+**Step 2:** Install official ROUGE script
+```
+git clone https://github.com/andersjo/pyrouge.git rouge
+```
+
+**Step 3:** Point Pyrouge to official rouge script
+```
+pyrouge_set_rouge_path ~/pyrouge/rouge/tools/ROUGE-1.5.5/
+```
+**Note: The path given to pyrouge should be absolute path*
+
+**Step 4:** Install libxml parser
+```
+sudo apt-get install libxml-parser-perl
+```
+
+**Step 5:** Regenerate the Exceptions DB
+```
+cd rouge/tools/ROUGE-1.5.5/data
+rm WordNet-2.0.exc.db
+./WordNet-2.0-Exceptions/buildExeptionDB.pl ./WordNet-2.0-Exceptions ./smart_common_words.txt ./WordNet-2.0.exc.db
+```
+
+**Step 6:** Run the tests
+```
+python -m pyrouge.test
+```
+You should see:
+**Ran 11 tests in 6.322s*
+**OK*
 
 **Updates**: For encoding a text longer than 512 tokens, for example 800. Set max_pos to 800 during both preprocessing and training.
 
@@ -167,15 +205,24 @@ python train.py  -task abs -mode train -bert_data_path BERT_DATA_PATH -dec_dropo
 
 
 ## Model Evaluation
+### Extractive Setting
+### CNN/DM
+```
+ python src/train.py -task ext -mode validate -batch_size 3000 -test_batch_size 500 -bert_data_path BERT_DATA_PATH -log_file 'logs/val_ext_bert_cnndm' -model_path MODEL_PATH -sep_optim true -use_interval true -visible_gpus 0 -max_pos 512 -max_length 200 -alpha 0.95 -min_length 50 -result_path 'logs/ext_bert_cnndm'
+```
+
+### Abstractive Setting
 ### CNN/DM
 ```
  python train.py -task abs -mode validate -batch_size 3000 -test_batch_size 500 -bert_data_path BERT_DATA_PATH -log_file ../logs/val_abs_bert_cnndm -model_path MODEL_PATH -sep_optim true -use_interval true -visible_gpus 1 -max_pos 512 -max_length 200 -alpha 0.95 -min_length 50 -result_path ../logs/abs_bert_cnndm 
 ```
+
 ### XSum
 ```
  python train.py -task abs -mode validate -batch_size 3000 -test_batch_size 500 -bert_data_path BERT_DATA_PATH -log_file ../logs/val_abs_bert_cnndm -model_path MODEL_PATH -sep_optim true -use_interval true -visible_gpus 1 -max_pos 512 -min_length 20 -max_length 100 -alpha 0.9 -result_path ../logs/abs_bert_cnndm 
 ```
+
 * `-mode` can be {`validate, test`}, where `validate` will inspect the model directory and evaluate the model for each newly saved checkpoint, `test` need to be used with `-test_from`, indicating the checkpoint you want to use
-* `MODEL_PATH` is the directory of saved checkpoints
+* `MODEL_PATH` is the directory of saved checkpoints. Use `model_step_*.pt` as the name for the files
 * use `-mode valiadte` with `-test_all`, the system will load all saved checkpoints and select the top ones to generate summaries (this will take a while)
 
