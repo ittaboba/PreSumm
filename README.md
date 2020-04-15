@@ -70,7 +70,7 @@ Results on CNN/DailyMail (20/8/2019):
 
 **Package Requirements**: torch==1.1.0 pytorch_transformers tensorboardX multiprocess pyrouge
 
-**ROUGE Setup**: [Source](https://stackoverflow.com/questions/45894212/installing-pyrouge-gets-error-in-ubuntu)
+**ROUGE Setup:** [[Source]](https://stackoverflow.com/questions/45894212/installing-pyrouge-gets-error-in-ubuntu)
 
 **Step 1:** Install Pyrouge from source (not from pip)
 ```
@@ -88,7 +88,7 @@ git clone https://github.com/andersjo/pyrouge.git rouge
 ```
 pyrouge_set_rouge_path ~/pyrouge/rouge/tools/ROUGE-1.5.5/
 ```
-**Note: The path given to pyrouge should be absolute path*
+*Note: The path given to pyrouge should be absolute path*
 
 **Step 4:** Install libxml parser
 ```
@@ -107,8 +107,8 @@ rm WordNet-2.0.exc.db
 python -m pyrouge.test
 ```
 You should see:
-**Ran 11 tests in 6.322s*
-**OK*
+*Ran 11 tests in 6.322s*
+*OK*
 
 **Updates**: For encoding a text longer than 512 tokens, for example 800. Set max_pos to 800 during both preprocessing and training.
 
