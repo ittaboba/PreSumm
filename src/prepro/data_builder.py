@@ -32,6 +32,10 @@ def recover_from_corenlp(s):
 
 
 def load_json(p, lower):
+    """ 
+    Function to load json and create dataset
+    Input: text as train;  highlight as target
+    """
     source = []
     tgt = []
     flag = False
@@ -159,6 +163,12 @@ def cal_rouge(evaluated_ngrams, reference_ngrams):
 
 
 def greedy_selection(doc_sent_list, abstract_sent_list, summary_size):
+    """ 
+    Algorithm used to create gold summaries from hand created target. It compare every sentence with hand maded one and calculate 2-ROUGE score. After that 
+    It sort the sentence the sentence by best score.
+    Input: DOCUMENT, ABSTRACT GIVEN BY USER, SUMMARY MAX SIZE(number of sentence)
+    Output: summary_size gold sentence which maximize the 2 rouge against hand written abstract.
+    """
     def _rouge_clean(s):
         return re.sub(r'[^a-zA-Z0-9 ]', '', s)
 
@@ -177,7 +187,7 @@ def greedy_selection(doc_sent_list, abstract_sent_list, summary_size):
         cur_id = -1
         for i in range(len(sents)):
             if (i in selected):
-                continue
+                continue #don't use duplicate
             c = selected + [i]
             candidates_1 = [evaluated_1grams[idx] for idx in c]
             candidates_1 = set.union(*map(set, candidates_1))
@@ -273,6 +283,9 @@ class BertData():
 
 
 def format_to_bert(args):
+    """ 
+    Function to create dataset in bert format --- main function is _format_to_bert which create gold summaries using greedy_selection
+    """
     if (args.dataset != ''):
         datasets = [args.dataset]
     else:
@@ -291,7 +304,12 @@ def format_to_bert(args):
         pool.join()
 
 
-def _format_to_bert(params):
+def _format_to_bert(params, number_sentence = 3):
+    """ 
+    Function which load data and process to bert format. It uses greedy selection to create gold reference.
+    Input: params, number_sentence (maximum number of sentence of gold target). Default number_sentence: 3 --> maybe change for longer text?
+    Output: dataset in bert format.
+    """
     corpus_type, json_file, args, save_file = params
     is_test = corpus_type == 'test'
     if (os.path.exists(save_file)):
@@ -305,8 +323,10 @@ def _format_to_bert(params):
     datasets = []
     for d in jobs:
         source, tgt = d['src'], d['tgt']
+        
+        sent_labels = greedy_selection(source[:args.max_src_nsents], tgt, number_sentence)
 
-        sent_labels = greedy_selection(source[:args.max_src_nsents], tgt, 3)
+        #BERT UNCASED --> LOWER
         if (args.lower):
             source = [' '.join(s).lower().split() for s in source]
             tgt = [' '.join(s).lower().split() for s in tgt]
@@ -329,6 +349,7 @@ def _format_to_bert(params):
 
 
 def format_to_lines(args):
+
     corpus_mapping = {}
     for corpus_type in ['valid', 'test', 'train']:
         temp = []
