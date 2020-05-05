@@ -396,6 +396,7 @@ def format_to_lines(args):
 
 
 def _format_to_lines(params):
+     """ Apply load_json to parse story file and it output's source, tgt --> (text, target: @higlight) """
     f, args = params
     print(f)
     source, tgt = load_json(f, args.lower)

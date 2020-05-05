@@ -171,6 +171,8 @@ class ExtSummarizer(nn.Module):
         top_vec = self.bert(src, segs, mask_src)
         sents_vec = top_vec[torch.arange(top_vec.size(0)).unsqueeze(1), clss]
         sents_vec = sents_vec * mask_cls[:, :, None].float()
+
+        #sent scores is last layer and wo/sigmoid in ExtTransformerEncoder are FC
         sent_scores = self.ext_layer(sents_vec, mask_cls).squeeze(-1)
         return sent_scores, mask_cls
 
