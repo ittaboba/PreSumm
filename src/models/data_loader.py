@@ -10,13 +10,11 @@ from others.logging import logger
 
 
 class Batch(object):
-    def _pad(self, data, pad_id, width=-1):
-        if (width == -1):
-            width = max(len(d) for d in data)
-        rtn_data = [d + [pad_id] * (width - len(d)) for d in data]
+    def _pad(self, data, pad_id, max_pos):
+        rtn_data = [d + [pad_id] * (max_pos - len(d)) for d in data]
         return rtn_data
 
-    def __init__(self, data=None, device=None, is_test=False):
+    def __init__(self, data=None, device=None, is_test=False, max_pos = 512):
         """Create a Batch from a list of examples."""
         if data is not None:
             self.batch_size = len(data)
@@ -26,16 +24,16 @@ class Batch(object):
             pre_clss = [x[3] for x in data]
             pre_src_sent_labels = [x[4] for x in data]
 
-            src = torch.tensor(self._pad(pre_src, 0))
-            tgt = torch.tensor(self._pad(pre_tgt, 0))
+            src = torch.tensor(self._pad(pre_src, 0, max_pos))
+            tgt = torch.tensor(self._pad(pre_tgt, 0, max_pos))
 
-            segs = torch.tensor(self._pad(pre_segs, 0))
+            segs = torch.tensor(self._pad(pre_segs, 0, max_pos))
             mask_src = 1 - (src == 0)
             mask_tgt = 1 - (tgt == 0)
 
 
-            clss = torch.tensor(self._pad(pre_clss, -1))
-            src_sent_labels = torch.tensor(self._pad(pre_src_sent_labels, 0))
+            clss = torch.tensor(self._pad(pre_clss, -1, max_pos))
+            src_sent_labels = torch.tensor(self._pad(pre_src_sent_labels, 0, max_pos))
             mask_cls = 1 - (clss == -1)
             clss[clss == -1] = 0
             setattr(self, 'clss', clss.to(device))
@@ -188,50 +186,62 @@ class DataIterator(object):
 
 
 
-
-
     def preprocess(self, ex, is_test):
         src = ex['src']
         tgt = ex['tgt'][:self.args.max_tgt_len][:-1]+[2]
         src_sent_labels = ex['src_sent_labels']
         segs = ex['segs']
+
         if(not self.args.use_interval):
             segs=[0]*len(segs)
+        
         clss = ex['clss']
         src_txt = ex['src_txt']
         tgt_txt = ex['tgt_txt']
 
-        end_id = [src[-1]]
-        src = src[:-1][:self.args.max_pos - 1] + end_id
-        segs = segs[:self.args.max_pos]
-        max_sent_id = bisect.bisect_left(clss, self.args.max_pos)
-        src_sent_labels = src_sent_labels[:max_sent_id]
-        clss = clss[:max_sent_id]
-        # src_txt = src_txt[:max_sent_id]
+        inf_ = 0
+        sup_ = 1
+        LEN_ = len(clss)
+        
+        #create batch of same sentence by taking window of max_pos
+        while(sup_ < LEN_):
 
+            #take and yeld chunk of max_pos token
+            if clss[sup_] - clss[inf_] > self.args.max_pos:
+                pos_inf, pos_sup = clss[inf_], clss[sup_-1]
+                #assign
+                src_temp = src[pos_inf:pos_sup]
+                segs_temp = segs[pos_inf:pos_sup]
+                clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
+                src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
+                inf_ = sup_
 
-        if(is_test):
-            return src, tgt, segs, clss, src_sent_labels, src_txt, tgt_txt
-        else:
-            return src, tgt, segs, clss, src_sent_labels
+                if(is_test):
+                    yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
+                else:
+                    yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp
+
+            sup_ += 1
+
 
     def batch_buffer(self, data, batch_size):
         minibatch, size_so_far = [], 0
         for ex in data:
             if(len(ex['src'])==0):
                 continue
-            ex = self.preprocess(ex, self.is_test)
-            if(ex is None):
-                continue
-            minibatch.append(ex)
-            size_so_far = self.batch_size_fn(ex, len(minibatch))
-            if size_so_far == batch_size:
-                yield minibatch
-                minibatch, size_so_far = [], 0
-            elif size_so_far > batch_size:
-                yield minibatch[:-1]
-                minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(ex, 1)
+            for chunk in self.preprocess(ex, self.is_test):
+                if(chunk is None):
+                    continue
+                minibatch.append(chunk)
+                size_so_far = self.batch_size_fn(chunk, len(minibatch))
+                if size_so_far == batch_size:
+                    yield minibatch
+                    minibatch, size_so_far = [], 0
+                elif size_so_far > batch_size:
+                    yield minibatch[:-1]
+                    minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(chunk, 1)
+
         if minibatch:
             yield minibatch
 
@@ -281,7 +291,7 @@ class DataIterator(object):
                     continue
                 self.iterations += 1
                 self._iterations_this_epoch += 1
-                batch = Batch(minibatch, self.device, self.is_test)
+                batch = Batch(minibatch, self.device, self.is_test, self.args.max_pos)
 
                 yield batch
             return
