@@ -246,17 +246,15 @@ class DataIterator(object):
             yield minibatch
 
     def batch(self, data, batch_size):
-        """Yield elements from data in chunks of batch_size."""
-        minibatch, size_so_far = [], 0
+        """Yield elements from data until reaching batch_num_elements elements."""
+        minibatch = []
         for ex in data:
             minibatch.append(ex)
-            size_so_far = self.batch_size_fn(ex, len(minibatch))
-            if size_so_far == batch_size:
+
+            if len(minibatch) == self.args.batch_num_elements:
                 yield minibatch
-                minibatch, size_so_far = [], 0
-            elif size_so_far > batch_size:
-                yield minibatch[:-1]
-                minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(ex, 1)
+                minibatch = []
+
         if minibatch:
             yield minibatch
 
@@ -296,94 +294,120 @@ class DataIterator(object):
                 yield batch
             return
 
+# class DataIterator_Test(object):
+#     def __init__(self, args, dataset,  batch_size, device=None):
+#         self.args = args
+#         self.batch_size, self.dataset = batch_size, dataset
+#         self.iterations = 0
+#         self.device = device
 
-class TextDataloader(object):
-    def __init__(self, args, datasets, batch_size,
-                 device, shuffle, is_test):
-        self.args = args
-        self.batch_size = batch_size
-        self.device = device
+#     def preprocess(self, ex):
+#         src = ex['src']
+#         tgt = ex['tgt'][:self.args.max_tgt_len][:-1]+[2]
+#         src_sent_labels = ex['src_sent_labels']
+#         segs = ex['segs']
 
-    def data(self):
-        if self.shuffle:
-            random.shuffle(self.dataset)
-        xs = self.dataset
-        return xs
+#         if(not self.args.use_interval):
+#             segs=[0]*len(segs)
+        
+#         clss = ex['clss']
+#         src_txt = ex['src_txt']
+#         tgt_txt = ex['tgt_txt']
 
-    def preprocess(self, ex, is_test):
-        src = ex['src']
-        tgt = ex['tgt'][:self.args.max_tgt_len][:-1] + [2]
-        src_sent_labels = ex['src_sent_labels']
-        segs = ex['segs']
-        if (not self.args.use_interval):
-            segs = [0] * len(segs)
-        clss = ex['clss']
-        src_txt = ex['src_txt']
-        tgt_txt = ex['tgt_txt']
+#         inf_ = 0
+#         sup_ = 1
+#         LEN_ = len(clss)
+        
+#         #create batch of same sentence by taking window of max_pos
+#         while(sup_ < LEN_):
 
-        end_id = [src[-1]]
-        src = src[:-1][:self.args.max_pos - 1] + end_id
-        segs = segs[:self.args.max_pos]
-        max_sent_id = bisect.bisect_left(clss, self.args.max_pos)
-        src_sent_labels = src_sent_labels[:max_sent_id]
-        clss = clss[:max_sent_id]
-        # src_txt = src_txt[:max_sent_id]
+#             #take and yeld chunk of max_pos token
+#             if clss[sup_] - clss[inf_] > self.args.max_pos:
+#                 pos_inf, pos_sup = clss[inf_], clss[sup_-1]
+#                 #assign
+#                 src_temp = src[pos_inf:pos_sup]
+#                 segs_temp = segs[pos_inf:pos_sup]
+#                 clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
+#                 src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
-        if (is_test):
-            return src, tgt, segs, clss, src_sent_labels, src_txt, tgt_txt
-        else:
-            return src, tgt, segs, clss, src_sent_labels
+#                 inf_ = sup_
 
-    def batch_buffer(self, data, batch_size):
-        minibatch, size_so_far = [], 0
-        for ex in data:
-            if (len(ex['src']) == 0):
-                continue
-            ex = self.preprocess(ex, self.is_test)
-            if (ex is None):
-                continue
-            minibatch.append(ex)
-            size_so_far = simple_batch_size_fn(ex, len(minibatch))
-            if size_so_far == batch_size:
-                yield minibatch
-                minibatch, size_so_far = [], 0
-            elif size_so_far > batch_size:
-                yield minibatch[:-1]
-                minibatch, size_so_far = minibatch[-1:], simple_batch_size_fn(ex, 1)
-        if minibatch:
-            yield minibatch
+#                 yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
 
-    def create_batches(self):
-        """ Create batches """
-        data = self.data()
-        for buffer in self.batch_buffer(data, self.batch_size * 300):
-            if (self.args.task == 'abs'):
-                p_batch = sorted(buffer, key=lambda x: len(x[2]))
-                p_batch = sorted(p_batch, key=lambda x: len(x[1]))
-            else:
-                p_batch = sorted(buffer, key=lambda x: len(x[2]))
-                p_batch = batch(p_batch, self.batch_size)
+#             sup_ += 1
 
-            p_batch = batch(p_batch, self.batch_size)
 
-            p_batch = list(p_batch)
-            if (self.shuffle):
-                random.shuffle(p_batch)
-            for b in p_batch:
-                if (len(b) == 0):
-                    continue
-                yield b
+#     def batch_buffer(self, data, batch_size):
+#         minibatch, size_so_far = [], 0
+#         for ex in data:
+#             if(len(ex['src'])==0):
+#                 continue
+#             for chunk in self.preprocess(ex, self.is_test):
+#                 if(chunk is None):
+#                     continue
+#                 minibatch.append(chunk)
+#                 size_so_far = self.batch_size_fn(chunk, len(minibatch))
+#                 if size_so_far == batch_size:
+#                     yield minibatch
+#                     minibatch, size_so_far = [], 0
+#                 elif size_so_far > batch_size:
+#                     yield minibatch[:-1]
+#                     minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(chunk, 1)
 
-    def __iter__(self):
-        while True:
-            self.batches = self.create_batches()
-            for idx, minibatch in enumerate(self.batches):
-                # fast-forward if loaded from state
-                if self._iterations_this_epoch > idx:
-                    continue
-                self.iterations += 1
-                self._iterations_this_epoch += 1
-                batch = Batch(minibatch, self.device, self.is_test)
+#         if minibatch:
+#             yield minibatch
 
-                yield batch
-            return
+#     def batch(self, data, batch_size):
+#         """Yield elements from data in chunks of batch_size."""
+#         minibatch, size_so_far = [], 0
+#         for ex in data:
+#             minibatch.append(ex)
+#             size_so_far = self.batch_size_fn(ex, len(minibatch))
+#             if size_so_far == batch_size:
+#                 yield minibatch
+#                 minibatch, size_so_far = [], 0
+#             elif size_so_far > batch_size:
+#                 yield minibatch[:-1]
+#                 minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(ex, 1)
+#         if minibatch:
+#             yield minibatch
+
+#     def create_batches(self):
+#         """ Create batches """
+#         data = self.data()
+#         for document in data:
+#             for chunk in self.preprocess(data)
+#                 if (self.args.task == 'abs'):
+#                     p_batch = sorted(buffer, key=lambda x: len(x[2]))
+#                     p_batch = sorted(p_batch, key=lambda x: len(x[1]))
+#                 else:
+#                     p_batch = sorted(buffer, key=lambda x: len(x[2]))
+
+#                 p_batch = self.batch(p_batch, self.batch_size)
+
+
+#                 p_batch = list(p_batch)
+#                 if (self.shuffle):
+#                     random.shuffle(p_batch)
+#                 for b in p_batch:
+#                     if(len(b)==0):
+#                         continue
+#                     yield b
+
+#     def __iter__(self):
+#         for idx, minibatch in enumerate(self.dataset):
+#             for chunk in self.preprocess(minibatch):
+#                 p_batch = sorted(buffer, key=lambda x: len(x[2]))
+#                 p_batch = list(p_batch)
+#                 for b in p_batch:
+#                     if(len(b)==0):
+#                         continue
+#                     yield b
+#                 # fast-forward if loaded from state
+#                 if self._iterations_this_epoch > idx:
+#                     continue
+#                 self.iterations += 1
+#                 self._iterations_this_epoch += 1
+#                 batch = Batch(minibatch, self.device, True, self.args.max_pos)
+
+#             yield batch
