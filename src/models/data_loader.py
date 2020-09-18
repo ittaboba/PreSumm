@@ -294,120 +294,59 @@ class DataIterator(object):
                 yield batch
             return
 
-# class DataIterator_Test(object):
-#     def __init__(self, args, dataset,  batch_size, device=None):
-#         self.args = args
-#         self.batch_size, self.dataset = batch_size, dataset
-#         self.iterations = 0
-#         self.device = device
+class DataIterator_Test(object):
+    def __init__(self, args, dataset,  batch_size, device=None):
+        self.args = args
+        self.batch_size, self.dataset = batch_size, dataset
+        self.iterations = 0
+        self.device = device
 
-#     def preprocess(self, ex):
-#         src = ex['src']
-#         tgt = ex['tgt'][:self.args.max_tgt_len][:-1]+[2]
-#         src_sent_labels = ex['src_sent_labels']
-#         segs = ex['segs']
+    def preprocess(self, ex):
+        src = ex['src']
+        tgt = ex['tgt'][:self.args.max_tgt_len][:-1]+[2]
+        src_sent_labels = ex['src_sent_labels']
+        segs = ex['segs']
 
-#         if(not self.args.use_interval):
-#             segs=[0]*len(segs)
+        if(not self.args.use_interval):
+            segs=[0]*len(segs)
         
-#         clss = ex['clss']
-#         src_txt = ex['src_txt']
-#         tgt_txt = ex['tgt_txt']
+        clss = ex['clss']
+        src_txt = ex['src_txt']
+        tgt_txt = ex['tgt_txt']
 
-#         inf_ = 0
-#         sup_ = 1
-#         LEN_ = len(clss)
+        inf_ = 0
+        sup_ = 1
+        LEN_ = len(clss)
         
-#         #create batch of same sentence by taking window of max_pos
-#         while(sup_ < LEN_):
+        #create batch of same sentence by taking window of max_pos
+        while(sup_ < LEN_):
 
-#             #take and yeld chunk of max_pos token
-#             if clss[sup_] - clss[inf_] > self.args.max_pos:
-#                 pos_inf, pos_sup = clss[inf_], clss[sup_-1]
-#                 #assign
-#                 src_temp = src[pos_inf:pos_sup]
-#                 segs_temp = segs[pos_inf:pos_sup]
-#                 clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
-#                 src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
+            #take and yeld chunk of max_pos token
+            if clss[sup_] - clss[inf_] > self.args.max_pos:
+                pos_inf, pos_sup = clss[inf_], clss[sup_-1]
+                #assign
+                src_temp = src[pos_inf:pos_sup]
+                segs_temp = segs[pos_inf:pos_sup]
+                clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
+                src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
-#                 inf_ = sup_
+                inf_ = sup_
 
-#                 yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
+                yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
 
-#             sup_ += 1
+            sup_ += 1
 
+    def __iter__(self):
+        while True:
+            for ex in self.dataset:
 
-#     def batch_buffer(self, data, batch_size):
-#         minibatch, size_so_far = [], 0
-#         for ex in data:
-#             if(len(ex['src'])==0):
-#                 continue
-#             for chunk in self.preprocess(ex, self.is_test):
-#                 if(chunk is None):
-#                     continue
-#                 minibatch.append(chunk)
-#                 size_so_far = self.batch_size_fn(chunk, len(minibatch))
-#                 if size_so_far == batch_size:
-#                     yield minibatch
-#                     minibatch, size_so_far = [], 0
-#                 elif size_so_far > batch_size:
-#                     yield minibatch[:-1]
-#                     minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(chunk, 1)
+                if(len(ex['src'])==0):
+                    continue
+                batched_doc = []
 
-#         if minibatch:
-#             yield minibatch
+                for chunk in self.preprocess(ex):
+                    if(chunk is None):
+                        continue
+                    batched_doc += [Batch(chunk, self.device, self.is_test, self.args.max_pos)]
 
-#     def batch(self, data, batch_size):
-#         """Yield elements from data in chunks of batch_size."""
-#         minibatch, size_so_far = [], 0
-#         for ex in data:
-#             minibatch.append(ex)
-#             size_so_far = self.batch_size_fn(ex, len(minibatch))
-#             if size_so_far == batch_size:
-#                 yield minibatch
-#                 minibatch, size_so_far = [], 0
-#             elif size_so_far > batch_size:
-#                 yield minibatch[:-1]
-#                 minibatch, size_so_far = minibatch[-1:], self.batch_size_fn(ex, 1)
-#         if minibatch:
-#             yield minibatch
-
-#     def create_batches(self):
-#         """ Create batches """
-#         data = self.data()
-#         for document in data:
-#             for chunk in self.preprocess(data)
-#                 if (self.args.task == 'abs'):
-#                     p_batch = sorted(buffer, key=lambda x: len(x[2]))
-#                     p_batch = sorted(p_batch, key=lambda x: len(x[1]))
-#                 else:
-#                     p_batch = sorted(buffer, key=lambda x: len(x[2]))
-
-#                 p_batch = self.batch(p_batch, self.batch_size)
-
-
-#                 p_batch = list(p_batch)
-#                 if (self.shuffle):
-#                     random.shuffle(p_batch)
-#                 for b in p_batch:
-#                     if(len(b)==0):
-#                         continue
-#                     yield b
-
-#     def __iter__(self):
-#         for idx, minibatch in enumerate(self.dataset):
-#             for chunk in self.preprocess(minibatch):
-#                 p_batch = sorted(buffer, key=lambda x: len(x[2]))
-#                 p_batch = list(p_batch)
-#                 for b in p_batch:
-#                     if(len(b)==0):
-#                         continue
-#                     yield b
-#                 # fast-forward if loaded from state
-#                 if self._iterations_this_epoch > idx:
-#                     continue
-#                 self.iterations += 1
-#                 self._iterations_this_epoch += 1
-#                 batch = Batch(minibatch, self.device, True, self.args.max_pos)
-
-#             yield batch
+                yield batched_doc

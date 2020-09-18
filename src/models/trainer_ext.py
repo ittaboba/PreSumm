@@ -417,3 +417,74 @@ class Trainer(object):
         """
         if self.model_saver is not None:
             self.model_saver.maybe_save(step)
+
+    def test_batch_rouge(self, test_iter, step):
+        """ Validate model.
+            valid_iter: validate data iterator
+        Returns:
+            :obj:`nmt.Statistics`: validation loss statistics
+        """
+
+        can_path = '%s_step%d.candidate' % (self.args.result_path, step)
+        gold_path = '%s_step%d.gold' % (self.args.result_path, step)
+
+        with torch.no_grad():
+            gold = []
+            pred = []
+
+            for document in test_iter:
+                
+                score_document, src_document = [], []
+                LEN_document = len(document)
+                pred_ = []
+
+                for batch in document:
+                    src = batch.src
+                    segs = batch.segs
+                    clss = batch.clss
+                    mask = batch.mask_src
+                    mask_cls = batch.mask_cls
+
+                    src_str = batch.src_str
+
+                    sent_scores, mask = self.model(src, segs, clss, mask, mask_cls)
+
+                    sent_scores = sent_scores + mask.float()
+                    sent_scores = sent_scores.cpu().data.numpy()
+
+                    #calculate -score and append in document list
+                    score_document += [- sent_scores[0][x] for x in range(LEN_document)]
+                    src_document += [src_str]
+
+                selected_ids = np.argsort(score_document)
+
+                for j in selected_ids:
+                    candidate = src_document[j].strip()
+
+                    #regularization check: discard empty candidate and only space candidate.
+                    if (candidate.count(' ') == len(candidate)):
+                        continue
+
+                    pred_.append(candidate)
+                    if ((not self.args.recall_eval) and len(pred_) == self.args.max_num_sentence):
+                        break
+
+                _pred = '<q>'.join(_pred)
+
+                #cleaning and appending results
+                pred.append(_pred.strip())
+                gold.append(batch.tgt_str[0].strip())
+                        
+        #save pred
+        with open(can_path, 'w') as save_pred:
+            pred = '\n'.join(pred)
+            save_pred.write(pred)
+
+        #save gold
+        with open(gold_path, 'w') as save_gold:
+            gold = '\n'.join(gold)
+            save_gold.write(gold)
+            
+        if (step != -1 and self.args.report_rouge):
+            rouges = test_rouge(self.args.temp_dir, can_path, gold_path)
+            logger.info('Rouges at step %d \n%s' % (step, rouge_results_to_str(rouges)))
