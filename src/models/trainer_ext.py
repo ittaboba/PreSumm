@@ -434,27 +434,26 @@ class Trainer(object):
 
             for document in test_iter:
                 
-                score_document, src_document = [], []
-                LEN_document = len(document)
-                pred_ = []
+                score_document, src_document, pred_ = [], [], []
 
-                for batch in document:
-                    src = batch.src
-                    segs = batch.segs
-                    clss = batch.clss
-                    mask = batch.mask_src
-                    mask_cls = batch.mask_cls
+                src_document = document[0].src_str[0]
 
-                    src_str = batch.src_str
+                for i, batch in enumerate(document):
+                  src = batch.src
+                  segs = batch.segs
+                  clss = batch.clss
+                  mask = batch.mask_src
+                  mask_cls = batch.mask_cls
+                  sent_scores, mask = self.model(src, segs, clss, mask, mask_cls)
 
-                    sent_scores, mask = self.model(src, segs, clss, mask, mask_cls)
+                  sent_scores = - sent_scores.cpu().data.numpy()
+                  score_list = []
 
-                    sent_scores = sent_scores + mask.float()
-                    sent_scores = sent_scores.cpu().data.numpy()
+                  for dim in range(sent_scores.shape[0]):
+                    row = sent_scores[dim, :]
+                    score_list += list(row[row != 0])
 
-                    #calculate -score and append in document list
-                    score_document += [- sent_scores[0][x] for x in range(LEN_document)]
-                    src_document += [src_str]
+                score_document += score_list
 
                 selected_ids = np.argsort(score_document)
 
@@ -469,10 +468,10 @@ class Trainer(object):
                     if ((not self.args.recall_eval) and len(pred_) == self.args.max_num_sentence):
                         break
 
-                _pred = '<q>'.join(_pred)
+                pred_ = '<q>'.join(pred_)
 
                 #cleaning and appending results
-                pred.append(_pred.strip())
+                pred.append(pred_.strip())
                 gold.append(batch.tgt_str[0].strip())
                         
         #save pred

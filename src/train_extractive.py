@@ -213,8 +213,8 @@ def test_ext_rouge(args, device_id, pt, step):
     model = ExtSummarizer(args, device, checkpoint)
     model.eval()
 
-    test_iter = data_loader.DataIterator_Test(args, load_dataset(args, 'test', shuffle=False),
-                                       args.test_batch_size, device)
+    test_iter = data_loader.Dataloader_Test(args, load_dataset(args, 'test', shuffle=False),
+                                       device)
     trainer = build_trainer(args, device_id, model, None)
     trainer.test_batch_rouge(test_iter, step)
 

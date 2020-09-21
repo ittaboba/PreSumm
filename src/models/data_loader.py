@@ -215,7 +215,7 @@ class DataIterator(object):
                 clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
                 src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
-                inf_ = sup_
+                inf_ = sup_ - 1
 
                 if(is_test):
                     yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
@@ -295,9 +295,9 @@ class DataIterator(object):
             return
 
 class DataIterator_Test(object):
-    def __init__(self, args, dataset,  batch_size, device=None):
+    def __init__(self, args, dataset, device=None):
         self.args = args
-        self.batch_size, self.dataset = batch_size, dataset
+        self.dataset = dataset
         self.iterations = 0
         self.device = device
 
@@ -317,12 +317,13 @@ class DataIterator_Test(object):
         inf_ = 0
         sup_ = 1
         LEN_ = len(clss)
-        
+
         #create batch of same sentence by taking window of max_pos
         while(sup_ < LEN_):
-
+            
             #take and yeld chunk of max_pos token
             if clss[sup_] - clss[inf_] > self.args.max_pos:
+                # print(inf_, sup_)
                 pos_inf, pos_sup = clss[inf_], clss[sup_-1]
                 #assign
                 src_temp = src[pos_inf:pos_sup]
@@ -330,23 +331,96 @@ class DataIterator_Test(object):
                 clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
                 src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
-                inf_ = sup_
+                inf_ = sup_ - 1
 
+                if len(src_temp) > self.args.max_pos:
+                  end_id = [src[-1]]
+                  src_temp = src_temp[:(self.args.max_pos - 1)] + end_id
+                  segs_temp = segs_temp[:self.args.max_pos]
+                  
+                  max_sent_id = bisect.bisect_left(clss_temp, self.args.max_pos)
+                  
+                  src_sent_labels_temp = src_sent_labels_temp[:max_sent_id]
+                  clss_temp = clss_temp[:max_sent_id]
+                
                 yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
-
+            
             sup_ += 1
+
+        if (LEN_ - 1) > inf_:
+          pos_inf = clss[inf_]
+
+          #assign
+          src_temp = src[pos_inf:]
+          segs_temp = segs[pos_inf:]
+          clss_temp = [x - clss[inf_] for x in clss[inf_:]]
+          src_sent_labels_temp = src_sent_labels[inf_:]
+          
+          if len(src_temp) > self.args.max_pos:
+            end_id = [src[-1]]
+            src_temp = src_temp[:(self.args.max_pos - 1)] + end_id
+            segs_temp = segs_temp[:self.args.max_pos]
+            
+            max_sent_id = bisect.bisect_left(clss_temp, self.args.max_pos)
+            
+            src_sent_labels_temp = src_sent_labels_temp[:max_sent_id]
+            clss_temp = clss_temp[:max_sent_id]
+
+          yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
 
     def __iter__(self):
         while True:
-            for ex in self.dataset:
-
+            for i, ex in enumerate(self.dataset):
                 if(len(ex['src'])==0):
                     continue
-                batched_doc = []
+                
+                chunked_doc = []
+                chunked_batch = []
 
                 for chunk in self.preprocess(ex):
-                    if(chunk is None):
-                        continue
-                    batched_doc += [Batch(chunk, self.device, self.is_test, self.args.max_pos)]
+                    if len(chunk[0]) > 512:
+                      print(chunk)
+                    chunked_doc += [chunk]
 
-                yield batched_doc
+                    if len(chunked_doc) == self.args.batch_num_elements:
+
+                      chunked_batch += [Batch(chunked_doc, self.device, True, self.args.max_pos)]
+                      chunked_doc = []
+                  
+                if len(chunked_doc) > 0:
+                  chunked_batch += [Batch(chunked_doc, self.device, True, self.args.max_pos)]
+
+                yield chunked_batch
+
+            return
+            
+class Dataloader_Test(object):
+    def __init__(self, args, datasets, device):
+        self.args = args
+        self.datasets = datasets
+        self.device = device
+        self.cur_iter = self._next_dataset_iterator(datasets)
+        assert self.cur_iter is not None
+
+    def __iter__(self):
+        dataset_iter = (d for d in self.datasets)
+        while self.cur_iter is not None:
+            for batch in self.cur_iter:
+                yield batch
+            self.cur_iter = self._next_dataset_iterator(dataset_iter)
+
+
+    def _next_dataset_iterator(self, dataset_iter):
+        try:
+            # Drop the current dataset for decreasing memory
+            if hasattr(self, "cur_dataset"):
+                self.cur_dataset = None
+                gc.collect()
+                del self.cur_dataset
+                gc.collect()
+
+            self.cur_dataset = next(dataset_iter)
+        except StopIteration:
+            return None
+
+        return DataIterator_Test(args = self.args, dataset=self.cur_dataset, device=self.device)
