@@ -215,13 +215,21 @@ class DataIterator(object):
                 clss_temp = [x - clss[inf_] for x in clss[inf_:(sup_-1)]]
                 src_sent_labels_temp = src_sent_labels[inf_:(sup_-1)]
 
-                inf_ = sup_ - 1
+                #check if to augment dataset by 
+                if self.args.augmentation_number is None:
+                    inf_ = sup_ - 1
+
+                else:
+                    #augment by selecting as new inf_ the middle point (depending by the value of augmentation_number)
+                    # inside the interval between (inf_, sup_ - 1)
+
+                    inf_ = int((sup_ - 1 - inf_)/self.args.augmentation_number) + inf_
 
                 if(is_test):
                     yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
                 else:
                     yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp
-
+            
             sup_ += 1
 
 
@@ -362,7 +370,6 @@ class DataIterator_Test(object):
             segs_temp = segs_temp[:self.args.max_pos]
             
             max_sent_id = bisect.bisect_left(clss_temp, self.args.max_pos)
-            
             src_sent_labels_temp = src_sent_labels_temp[:max_sent_id]
             clss_temp = clss_temp[:max_sent_id]
 
@@ -370,7 +377,7 @@ class DataIterator_Test(object):
 
     def __iter__(self):
         while True:
-            for i, ex in enumerate(self.dataset):
+            for ex in self.dataset:
                 if(len(ex['src'])==0):
                     continue
                 

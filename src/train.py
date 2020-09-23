@@ -37,6 +37,8 @@ if __name__ == '__main__':
 
     #added configurable max_num_sent to select number of passed sentence
     parser.add_argument("-max_num_sentence", default = 7, type = int) 
+    #added augmentation parameter: if None then no augmentation othwerise if is a number it will augment data
+    parser.add_argument("-augmentation_number", default = None, type = float)
 
     parser.add_argument("-batch_num_elements", default = 8, type = int)
     parser.add_argument("-batch_size", default=140, type=int)
