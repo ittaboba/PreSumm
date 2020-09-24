@@ -208,6 +208,16 @@ class DataIterator(object):
 
             #take and yeld chunk of max_pos token
             if clss[sup_] - clss[inf_] > self.args.max_pos:
+                # check for single long sentence
+                #If they are too long just skip them
+                if clss[sup_ - 1] - clss[inf_] > self.args.max_pos:
+                  
+                  inf_ = sup_ - 1
+                  sup_ += 1
+
+                  continue
+
+
                 pos_inf, pos_sup = clss[inf_], clss[sup_-1]
                 #assign
                 src_temp = src[pos_inf:pos_sup]
@@ -223,7 +233,21 @@ class DataIterator(object):
                     #augment by selecting as new inf_ the middle point (depending by the value of augmentation_number)
                     # inside the interval between (inf_, sup_ - 1)
 
-                    inf_ = int((sup_ - 1 - inf_)/self.args.augmentation_number) + inf_
+                    add_ = int((sup_ - 1 - inf_)/self.args.augmentation_number)
+                    
+                    #check to avoid collapse of chunk
+                    if add_ == 0:
+
+                      #no Augmentation
+                      inf_ = sup_ - 1
+                    
+                    else:
+
+                      #augment depending on augmentation number
+                      inf_ += add_
+                      
+                      #restart from sup_ - 1 to check max position is correct
+                      sup_ -= 1 
 
                 if(is_test):
                     yield src_temp, tgt, segs_temp, clss_temp, src_sent_labels_temp, src_txt, tgt_txt
